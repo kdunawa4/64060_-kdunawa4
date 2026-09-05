@@ -1,0 +1,54 @@
+---
+title: "Homework 1 Machine Learning"
+author: "Keeli Dunaway"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#1 and 2
+data = read.csv("https://raw.githubusercontent.com/YBIFoundation/Dataset/refs/heads/main/Insurance%20Premium.csv")
+#head(data)
+```
+
+```{r}
+#3
+summary(data[,c("Age", "BMI", "Children", "Premium")])
+#For things like quartiles and minimums/maximums
+install.packages("psych")
+library(psych)
+describe(data[,c("Age", "BMI", "Children", "Premium")])
+#For mean, standard deviation, median, max, min, et
+c.
+#Note to self: Kurtosis is how extreme the tails are compared to a normal distribution (positive is more extreme tails --> outliers)
+#If the skew is positive, it is right skewed
+#MAD = Median Absolute Deviation
+table(data[,c("Gender", "Smoker", "Region")])
+#Summary counts of the possible combinations of gender, smoker status, and region
+```
+```{r}
+#4
+data$logPrem = log(data$Premium)
+#5
+#head(data)
+install.packages("ggplot2")
+library(ggplot2)
+ggplot(data, aes(x = Age, y = logPrem))+
+  geom_point()
+ggplot(data, aes(x = Gender)) +
+  geom_bar()
+
+```
+
+
+
