@@ -1,0 +1,237 @@
+---
+title: "Homework 2 Machine Learning"
+author: "Keeli Dunaway"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r}
+#General setup
+#remove.packages("rlang")
+#find.package("rlang", quiet = TRUE)
+#install.packages("rlang", repos = "https://cloud.r-project.org")
+#packageVersion("rlang")
+#install.packages("caret")
+#install.packages("dplyr")
+library(caret)
+library(dplyr)
+#Main SetUp
+
+set.seed(1)
+#So that results can be repeated
+
+data = read.csv("C:/Users/Keeli/OneDrive/Documents/Fall 2026 Textbooks/Classwork Machine Learning/UniversalBank.csv")
+
+head(data)
+
+data$Education = data$Education %>% as.factor()
+#So that education is not a numeric variable and can be broken out into dummy variables
+trainingSet = createDataPartition(
+  data$Personal.Loan,
+  times = 1,
+  p = 0.6,
+  list = FALSE,
+)
+testSet = -trainingSet
+#Gives us the selected rows for the data we'll use in the training set and then for the test set
+dataTraining = data[trainingSet,]
+dataTest = data[testSet,]
+#To select the specific rows for the separate data frames... Selected rows, all columns
+#head(dataTraining)
+#k-NN: k = #obs, NN = nearest neighbors for predicting which category a observation will fall into based on other similar observations
+#For our example: Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education_1 = 0, Education_2 = 1, Education_3 = 0, Mortgage = 0, Securities Account = 0, CD Account = 0, Online = 1, and Credit Card = 1
+
+#1) Perform a k-NN classification with all predictors except ID and ZIP code using k = 1. Remember to transform categorical predictors with more than two categories into dummy variables first. Specify the success class as 1 (loan acceptance), and use the default cutoff value of 0.5. How would this customer be classified?
+head(data)
+
+newDataTraining = dataTraining %>% select(-ID, -ZIP.Code)
+newDataTest = dataTest %>% select(-ID, -ZIP.Code)
+#Remove ID and Zip from the training and test partitions
+dummyEduc = dummyVars(~Education, data = newDataTraining)
+dummyTraining = predict(dummyEduc, newdata = newDataTraining)
+#head(dummyTraining)
+#dont think this worked
+newDataTraining = newDataTraining %>% select(-Education)
+newDataTraining = cbind(newDataTraining, dummyTraining)
+names(newDataTraining)
+
+```
+```{r}
+#1)
+#names(ourCustomer) # make sure all variable names are the exact same (was Education.1/.2/.3 for one and Education1/2/3 for the other)
+
+
+
+#We don't want ID or ZipCode
+newDataTest = dataTest %>% select(-ID, -ZIP.Code)
+# Create the dummy variables using the dummy-variable model
+dummyTest = predict(dummyEduc, newdata = newDataTest)
+newDataTest = newDataTest %>% select(-Education)#Remove OG education var
+newDataTest = cbind(newDataTest, dummyTest) #Adding in the dummy variables
+#Checking names
+#names(newDataTest)
+#names(newDataTraining)
+
+xTraining = newDataTraining %>% select(-Personal.Loan)
+yTraining = newDataTraining$Personal.Loan
+preprocess = preProcess(xTraining, method = c("center", "scale"))
+xTraining = predict(preprocess, xTraining)
+xTest = newDataTest %>% select(-Personal.Loan)
+yTest = newDataTest$Personal.Loan
+xTest = predict(preprocess, xTest)
+
+ourCustomer = data.frame(Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Mortgage = 0, Securities.Account = 0, CD.Account = 0, Online = 1, CreditCard = 1, Education.1 = 0, Education.2 = 1, Education.3 = 0)
+Customer = predict(preprocess, ourCustomer)
+library(class) #Has the knn function we're using for assignment
+knn1 = knn(train = xTraining, test = Customer, cl = as.factor(yTraining), k = 1)
+print(knn1) 
+#returns 0 (loan rejection) so the customer would not accept the loan
+```
+
+```{r}
+#2)
+
+K = c(1,2,3,4,5,6,7,8,9,10,11,15,20,25,30,40,50) #K values to test
+accurate = numeric(length(K)) #To store the accuracy for each K value
+for (i in 1:length(K)) {knnPred = knn(
+  train = xTraining,
+  test = xTest,
+  cl = as.factor(yTraining),
+  k = K[i])
+  accurate[i] = mean(knnPred == as.factor(yTest))}
+
+data.frame(K = K, Accuracy = accurate)
+K[which.max(accurate)]
+#When K = 3 we have the highest accuracy and this best balances overfitting and ignoring the predictor information
+
+```
+
+```{r}
+#3)
+
+AccurateK = K[which.max(accurate)] #store 3
+
+AccurateKPred = knn(
+  train = xTraining,
+  test = xTest,
+  cl = as.factor(yTraining), #this is what allows us to treat 0 and 1 as categories instead of integers/values
+  k = AccurateK #Using the most accurate K from the loop earlier instead for the k-NN model
+)
+
+confusionMatrix(AccurateKPred, as.factor(yTest), positive = "1")
+#Positive = "1" means that we identify 1 (acceptance of personal loan ) as the positive outcome -> drives our interpretations of sensitivity and specificity.
+#We had 1786 true negatives (0) predicted with the model and 63 false negatives. Then we had 9 falsely predicted acceptances (1) and 142 accurately predicted acceptances. This led to an accuracy of 96.4%. (Correct/All)
+```
+
+
+```{r}
+#4)
+
+AccurateCustomer = knn(
+  train = xTraining,
+  test = Customer,
+  cl = as.factor(yTraining),
+  k = AccurateK)
+AccurateCustomer
+#Returns 0 (still predicted to not accept the personal loan)
+
+```
+
+```{r}
+#5) 
+
+trainingSet = createDataPartition(
+  data$Personal.Loan,
+  times = 1,
+  p = 0.5,
+  list = FALSE,)
+remainder = -trainingSet
+#Gives us the selected rows for the data we'll use in the training set and then the rest
+dataTraining = data[trainingSet,]
+remainingData = data[remainder,]
+#Now we will split the remaining data into 60% validation and 40% test (everything else) to get the 30% and 20% split overall from the remaining 50%. 
+ValidationSet = createDataPartition(
+  remainingData$Personal.Loan,
+  times = 1,
+  p = 0.6,
+  list = FALSE,)
+validationData = remainingData[ValidationSet,]
+testSet = -ValidationSet #reuse what we can from from Q1
+dataTest = remainingData[testSet,]
+#nrow(dataTraining)
+#nrow(validationData)
+#nrow(dataTest) to check the % splits
+newDataTraining = dataTraining %>% select(-ID, -ZIP.Code)
+newDataValidation = validationData %>% select(-ID, -ZIP.Code)
+newDataTest = dataTest %>% select(-ID, -ZIP.Code)
+#same as in question 1 but for the 3 groups instead of 2
+dummyTraining = predict(dummyEduc, newdata = newDataTraining)
+dummyValid = predict(dummyEduc, newdata = newDataValidation)
+dummyTest = predict(dummyEduc, newdata = newDataTest)
+
+newDataTraining = newDataTraining %>% select(-Education)
+newDataValidation = newDataValidation %>% select(-Education)
+newDataTest = newDataTest %>% select(-Education)
+
+newDataTraining = cbind(newDataTraining, dummyTraining)
+newDataValidation = cbind(newDataValidation, dummyValid)
+newDataTest = cbind(newDataTest, dummyTest)
+
+
+xTraining = newDataTraining %>% select(-Personal.Loan)
+yTraining = newDataTraining$Personal.Loan
+preprocess = preProcess(xTraining, method = c("center", "scale")) #we want to use the preprocess from training only since this is what our model is actually learning from 
+xTraining = predict(preprocess, xTraining)
+
+xValidation = newDataValidation %>% select(-Personal.Loan)
+yValidation = newDataValidation$Personal.Loan
+xValidation = predict(preprocess, xValidation)
+
+xTest = newDataTest %>% select(-Personal.Loan)
+yTest = newDataTest$Personal.Loan
+xTest = predict(preprocess, xTest)
+
+
+k3Training = knn(
+  train = xTraining,
+  test = xTraining,
+  cl = as.factor(yTraining),
+  k = AccurateK)
+
+k3Valid = knn(
+  train = xTraining, #how well the model trained and performs on the validation (and later test data)
+  test = xValidation,
+  cl = as.factor(yTraining),
+  k = AccurateK)
+
+k3Test = knn(
+  train = xTraining,
+  test = xTest,
+  cl = as.factor(yTraining),
+  k = AccurateK)
+
+
+confusionMatrix(k3Training, as.factor(yTraining), positive = "1")
+#97.76% accuracy, 78.48% sensitivity
+confusionMatrix(k3Valid, as.factor(yValidation), positive = "1")
+#95.07% accuracy, 60.65% sensitivity
+confusionMatrix(k3Test, as.factor(yTest), positive = "1")
+#96.8% accuracy, 68.18% sensitivity
+
+#The training accuracy is the highest which makes sense since this is what was used to construct the model. We've also learned about optimism bias when it comes to these training sets. The training data had noticeably higher sensitivity, which tells us how well the model identifies who accepts the personal loan. Thus, the model identifies over 3/4 of acceptances in training but less than 70% in validation and testing. This makes sense since it also indicates that the model is not as efficient in identifying those acceptances when looking at observations it has not seen before (in validation and test data). Specificity was over 99% for all 3 groups, meaning that the model very accurately identifies who doesn't accept the personal loan. From these results we can note the slight optimism bias (though not surprising/unexpected) from the training data since the validation and test sets include points that the training data did not build its model off of.
+
+```
