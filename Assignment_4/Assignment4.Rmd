@@ -1,0 +1,152 @@
+---
+title: "Assignment 4"
+author: "Keeli Dunaway"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Part 1
+SetUp and conducting the cluster analysis...
+We need to standardize the numericVar variables before applying K-means. (Xi- Xbar)/Sd
+
+```{r}
+#Part a
+
+set.seed(123)
+#a)
+pharmaceuticals = read.csv("C:/Users/Keeli/OneDrive/Documents/Fall 2026 Textbooks/Classwork Machine Learning/Pharmaceuticals.csv")
+#names(pharmaceuticals)
+# head(pharmaceuticals) to check which variables are numerical
+numericVar<- pharmaceuticals[, c(
+  "Market_Cap", "Beta", "PE_Ratio", "ROE", "ROA",
+  "Asset_Turnover", "Leverage", "Rev_Growth",
+  "Net_Profit_Margin"
+)]
+#to standardize the variables since Market_Cap is a very large scale value compared to things like Beta and ROE. That way Market Cap can't overpower smaller scale variables.
+stdPharm = scale(numericVar)
+# head(stdPharm)
+# dim(stdPharm)
+# apply(stdPharm,2,sd) tells us sd are close to 1
+#colMeans(stdPharm) checking for close to 0
+# Calculate within-cluster sum of squares for k = 1 through 6
+TotWSS<- numeric(6) #to store the TotWSS for each k in a vector
+
+for (k in 1:6) { #testing one through six clusters
+  model<- kmeans(
+    stdPharm,
+    centers = k, #how many clusters
+    nstart = 100 #picks 100 random starting points and picks the best
+    )
+
+  TotWSS[k]<- model$tot.withinss #pull out the total within-cluster sum of squares
+}
+#names(model) #checking the output variables
+#head(model)
+
+# Display the TotWSS values
+TotWSS
+# Create plot to see the elbow
+plot( #graph TotWSS against the number of clusters
+  1:6, TotWSS,
+  type = "b", #Points and lines on graph
+  xlab = "K Clusters",
+  ylab = "Total Within-Cluster SS",
+  main = "Clusters VS Total W-C SS"
+)
+
+# Choose the final number of clusters
+k_final<- 3
+#To have balance between reducing the within-cluster variance but keep the groups easy to interpret
+
+# Run the final k-means model
+set.seed(123)
+
+#Trying multiple randome starting positions and picking the best one
+FINAL<- kmeans(
+  stdPharm,
+  centers = k_final,
+  nstart = 100
+)
+
+# Display the clustering results
+FINAL
+
+#Objective is to minimize the total within-cluster sum of squares
+FINAL$size #Firms in each cluster
+FINAL$withinss #Within-cluster SS
+FINAL$tot.withinss #Total W-C SS
+# Add the cluster assignment to the original dataset
+pharmaceuticals$Cluster <- factor(FINAL$cluster)
+
+# Part d: Assign descriptive names to the three clusters
+pharmaceuticals$Cluster_Name <- factor(
+  pharmaceuticals$Cluster,
+  levels = c(1, 2, 3),
+  labels = c(
+    "High Valuation and Low Profitability",
+    "Large and Profitable Firms",
+    "High Growth and Leverage Firms"
+  )
+)
+#Note our large and profitable firms are like "Blue Chip" funds 
+
+# List each firm and its cluster assignment and name (part d)
+pharmaceuticals[, c("Name", "Symbol", "Cluster", "Cluster_Name")]
+#pharmaceuticals$Cluster_Name
+```
+
+```{r}
+#Part b
+cluster_means <- aggregate(
+  numericVar,
+  by = list(Cluster = pharmaceuticals$Cluster),
+  FUN = mean
+)
+#group 21 firms by assigned cluster and calculate the average for each of the 9 numericVar variables
+
+cluster_means[, -1] <- round(cluster_means[, -1], 2)
+
+
+# Display the standardized center of each cluster
+# Positive values indicate above-average values for that variable compared to the market average
+round(FINAL$centers, 2)#for ease
+#This is a comparison of the clusters to the dataset as a whole that is centered around 0 (standardized)
+
+#Results
+#Cluster 1: High PE ratio but very low (negative) ROE, ROA, and net profit margin. These firms have high valuations in comparison to their earnings but don't have good returns.
+#Cluster 2: Higher market cap, ROE, ROA, net profit margin, and a low Beta. These firms are our Blue Chip firms with stable returns and are leading the market.
+#Cluster 3: High revenue growth but have lots of leverage (debt), making these firms risky.
+```
+
+
+
+
+```{r}
+# Compare analyst recommendations across the three clusters (Part C)
+# Calculate the percentage distribution within each cluster
+prop.table(
+  table(pharmaceuticals$Cluster, #Rows are clusters and columns are the median recommendation
+  pharmaceuticals$Median_Recommendation),
+  margin = 1 #Calculates percentages by row (by cluster) instead of by entire population or by columns
+)
+#We see caution across the board with many analysts giving hold ratings. Cluster 3 has the largest percentage of moderate sell at 33% while Clusters 1 and 2 are either at 18% or 0%. This is likely due to their comparatively higher levels of debt making them riskier investments.
+
+prop.table(
+  table(pharmaceuticals$Cluster, pharmaceuticals$Location),
+  margin = 1
+)
+#Cluster 2 (large and profitable) seems to be very concentrated in the US (73%) with some stragglers in Switzerland and the UK.
+#Cluster 1 is evenly split among 4 countries and Cluster 3 is also US dominated (67%) with the leftover in France and Ireland.
+#Cluster 2 shows us our US pharmaceutical powerhouses.
+
+prop.table(
+  table(pharmaceuticals$Cluster, pharmaceuticals$Exchange),
+  margin = 1
+)
+#Clusters 1 and 2 are fully on the NYSE, indicating very large and established firms. They can be universally traded here. Cluster 3 has more variation, with some on NASDAQ and AMEX.
+
+```
